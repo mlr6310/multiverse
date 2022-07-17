@@ -1,0 +1,61 @@
+specification_plot_generator <- function(spec_object, decision_columns, beta_column, p_column, p_threshold=0.05, output="plot", decision_key_input){
+                                                                                            
+  #updated 7.15.22
+  
+  library(reshape2)
+  varmatch_generic <- function(var_vector, df_key){
+    print("vartable is vector; first df_key col is uncorrected var")
+    base_match <- base::match(var_vector, df_key[,1])
+    neworder <- df_key[base_match,2]
+    neworder
+  }
+  
+  
+  spec_object$beta_column <- spec_object[,beta_column]
+  spec_object <- spec_object[order(as.numeric(as.character(spec_object[,beta_column]))),]
+  spec_object$specnum <- c(1:dim(spec_object)[1])
+  
+  #plot
+  spec_object$p_color <- ifelse(spec_object[,p_column]<p_threshold,paste0("p<", round(p_threshold,3)), "P=NS")
+  
+  specification_curve_plot <- ggplot(data = spec_object, aes(x=specnum,y=beta_column, color=as.factor(p_color))) +
+    geom_point(alpha=0.5, size=2) +
+    labs(color="", y="Beta Weight", x="Specification Number", subtitle=paste0("Specification Curve (specifications=", dim(spec_object), ")"))+
+    scale_fill_discrete(name = "New Legend Title")+
+    theme_bw()+
+    theme(legend.position="bottom", axis.text = element_text(size = 12), axis.title = element_text(size=14),title = element_text(size=14))+
+    theme(legend.text=element_text(size=14))
+  
+  #table
+  spec_object_table <- spec_object
+  rownames(spec_object_table) <- spec_object_table$specnum
+  plotDat_spec <- melt(as.matrix(spec_object_table[,c(decision_columns)]))
+  plotDat_spec$check_col <- paste0(plotDat_spec$Var2, "_", plotDat_spec$value)
+  plotDat_spec$decision <- varmatch_generic(plotDat_spec$value,decision_key_input)
+  plotDat_spec$value <- 1
+  if(length(table(plotDat_spec$check_col)) - length( table(plotDat_spec$decision)) >0){print("Error: Non-unique labels (decision_key_input) were used")}
+  check_unique_names <- rbind(table(plotDat_spec$check_col), table(plotDat_spec$decision))
+  if(max(abs(check_unique_names[1,]- check_unique_names[2,]))>0) {print("Error: Non-unique labels (decision_key_input) were used")}
+  
+  cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
+  
+  specification_curve_table<- ggplot2::ggplot(plotDat_spec, aes(Var1, decision, label = value, fill=c("blue")[value])) +
+    geom_tile() +
+    scale_fill_identity() +
+    scale_colour_manual(values=cbPalette)+
+    theme_minimal() +
+    ggtitle(paste0("Specification Table"))+
+    labs(x="Specification Number", y="Analytic Decision")+
+    theme(axis.text = element_text(size = 10))
+  
+  
+  if(output=="table"){
+    spec_curve_output <- specification_curve_table
+    plot(specification_curve_table)
+  }
+  if(output=="plot"){
+    spec_curve_output <- specification_curve_plot
+    plot(specification_curve_plot)
+  }
+  spec_curve_output
+}
